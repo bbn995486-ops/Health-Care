@@ -149,19 +149,25 @@
                       <p class="text-center text-sm text-gray-400 py-8">오늘은 쉬는 날입니다! 푹 쉬세요.</p>
                     ) : (
                       currentData.exercises.map((exercise, index) => (
-                        <div key={index} class="rounded-2xl border border-gray-200 p-4 bg-white">
+                        /* 완료 상태일 때 카드 배경을 투명한 초록색(bg-green-50)으로 변경 */
+                        <div key={index} class={`rounded-2xl border border-gray-200 p-4 transition-colors duration-200 ${exercise.completed ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
                           <div class="flex items-start justify-between gap-3">
                             <div class="flex-1">
-                              <div class="font-semibold text-sm">{exercise.name}</div>
+                              <div class={`font-semibold text-sm ${exercise.completed ? 'text-gray-500 line-through' : ''}`}>{exercise.name}</div>
                               <div class="flex flex-wrap gap-2 mt-2">
                                 {exercise.sets.map((set, idx) => (
-                                  <div key={idx} class="rounded-xl bg-[#f8e9ed] px-3 py-1 text-xs font-bold text-[#b83048]">{set}</div>
+                                  <div key={idx} class={`rounded-xl px-3 py-1 text-xs font-bold ${exercise.completed ? 'bg-gray-200 text-gray-500' : 'bg-f8e9ed bg-[#f8e9ed] text-[#b83048]'}`}>{set}</div>
                                 ))}
                               </div>
                             </div>
+                            {/* 요청하신 체크 버튼 디자인 반영 부분 */}
                             <button
                               onClick={() => toggleExercise(index)}
-                              class={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${exercise.completed ? 'bg-green-600 text-white' : 'border-2 border-dotted border-[#b83048]'}`}
+                              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                                exercise.completed
+                                  ? 'bg-green-600 text-white'
+                                  : 'border-2 border-dotted border-[#b83048] text-[#b83048]'
+                              }`}
                             >
                               ✔
                             </button>
@@ -193,91 +199,4 @@
                   value={aiQuestion}
                   onChange={(e) => setAiQuestion(e.target.value)}
                   placeholder="AI 코치에게 운동 루틴이나 피드백을 질문해 보세요."
-                  class="w-full rounded-2xl border border-gray-200 p-4 mt-4 min-h-[100px] outline-none text-sm"
-                />
-                <button onClick={() => setAiAnswer(`분석 완료: 입력하신 '${aiQuestion}' 내용을 기반으로 정밀 근비대 피드백을 계산 중입니다.`)} class="w-full rounded-2xl bg-[#b83048] py-4 text-white font-bold mt-4">AI 분석 요청</button>
-              </div>
-            )}
-
-            {page === 'settings' && (
-              <div class="space-y-4">
-                {Object.entries(routineData).map(([day, data]) => (
-                  <div key={day} class="bg-white rounded-3xl p-5 border border-gray-200">
-                    <div class="flex items-center justify-between mb-4">
-                      <div>
-                        <h2 class="font-bold text-lg text-[#b83048]">{day}요일 루틴</h2>
-                        <p class="text-sm text-gray-500">{data.title}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { setEditingDay(day); setExerciseName(''); setExerciseSets('10 x 10'); setShowAddModal(true); }}
-                      class="w-full rounded-2xl border-2 border-dotted border-[#b83048] py-3 text-sm font-bold text-[#b83048]"
-                    >
-                      + 운동 추가
-                    </button>
-                    <div class="space-y-2 mt-4">
-                      {data.exercises.map((exercise, index) => (
-                        <div key={index} class="rounded-2xl bg-gray-100 p-4 flex items-center justify-between">
-                          <div>
-                            <div class="font-semibold text-sm">{exercise.name}</div>
-                            <div class="text-xs text-gray-500 mt-1">{exercise.sets.join(', ')}</div>
-                          </div>
-                          <div class="flex gap-3">
-                            <button onClick={() => { setEditingDay(day); setEditingIndex(index); setExerciseName(exercise.name); setExerciseSets(exercise.sets.join(', ')); setShowEditModal(true); }} class="text-sm font-bold text-[#b83048]">수정</button>
-                            <button onClick={() => deleteExercise(day, index)} class="text-sm font-bold text-red-500">삭제</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-4 px-4">
-            <div class="max-w-md mx-auto grid grid-cols-4 gap-2 text-center">
-              <button onClick={() => setPage('home')} class={`font-bold text-sm ${page === 'home' ? 'text-[#b83048]' : 'text-gray-400'}`}>홈</button>
-              <button onClick={() => setPage('calendar')} class={`font-bold text-sm ${page === 'calendar' ? 'text-[#b83048]' : 'text-gray-400'}`}>캘린더</button>
-              <button onClick={() => setPage('analysis')} class={`font-bold text-sm ${page === 'analysis' ? 'text-[#b83048]' : 'text-gray-400'}`}>분석</button>
-              <button onClick={() => setPage('settings')} class={`font-bold text-sm ${page === 'settings' ? 'text-[#b83048]' : 'text-gray-400'}`}>설정</button>
-            </div>
-          </div>
-
-          {showAddModal && (
-            <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div class="bg-white rounded-3xl p-5 w-full max-w-sm">
-                <h2 class="text-xl font-bold mb-4">운동 추가</h2>
-                <input value={exerciseName} onChange={(e) => setExerciseName(e.target.value)} placeholder="운동 이름" class="w-full rounded-2xl border border-gray-200 p-4 outline-none mb-3 text-sm" />
-                <input value={exerciseSets} onChange={(e) => setExerciseSets(e.target.value)} placeholder="40 x 10, 50 x 8" class="w-full rounded-2xl border border-gray-200 p-4 outline-none text-sm" />
-                <button onClick={addExercise} class="w-full rounded-2xl bg-[#b83048] py-4 text-white font-bold mt-4">완료</button>
-              </div>
-            </div>
-          )}
-
-          {showEditModal && (
-            <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div class="bg-white rounded-3xl p-5 w-full max-w-sm">
-                <h2 class="text-xl font-bold mb-4">운동 수정</h2>
-                <input value={exerciseName} onChange={(e) => setExerciseName(e.target.value)} placeholder="운동 이름" class="w-full rounded-2xl border border-gray-200 p-4 outline-none mb-3 text-sm" />
-                <input value={exerciseSets} onChange={(e) => setExerciseSets(e.target.value)} placeholder="40 x 10, 50 x 8" class="w-full rounded-2xl border border-gray-200 p-4 outline-none text-sm" />
-                <button onClick={editExercise} class="w-full rounded-2xl bg-[#b83048] py-4 text-white font-bold mt-4">완료</button>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // 정상 라이브러리 명칭(ReactDOM)으로 오타 수정 완료
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(URL.createObjectURL(new Blob([`
-        self.addEventListener('fetch', function(e) { e.respondWith(fetch(e.request)); });
-      `], {type: 'application/javascript'})));
-    }
-  </script>
-</body>
-</html>
+                  class="w-full rounded-2xl border border-gray-200 p-4 mt-4 min-h-[100px] outline-none text-
