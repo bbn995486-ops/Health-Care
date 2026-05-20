@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Workout AI</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Workout AI" />
+  <link rel="apple-touch-icon" href="icon.png" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <link rel="shortcut icon" href="icon.png" type="image/png">
+  <script>
+    const manifest = {
+      "short_name": "Workout AI",
+      "name": "Workout AI",
+      "icons": [{"src": "icon.png", "type": "image/png", "sizes": "512x512"}],
+      "start_url": ".",
+      "background_color": "#f3f4f6",
+      "theme_color": "#b83048",
+      "display": "standalone",
+      "orientation": "portrait"
+    };
+    const stringManifest = JSON.stringify(manifest);
+    const blob = new Blob([stringManifest], {type: 'application/json'});
+    const manifestURL = URL.createObjectURL(blob);
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestURL;
+    document.head.appendChild(link);
+  </script>
+
+  <style>
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+  </style>
+</head>
+<body class="bg-[#f3f4f6] text-[#111827]">
+
+  <div id="root"></div>
+
+  <script>
+    const { useState, useEffect, useMemo } = React;
+    const e = React.createElement;
+
+    const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+
+    const DEFAULT_ROUTINE = {
+      "월": [
+        { name: "랫풀다운", sets: "50 x 10 · 60 x 8" },
+        { name: "바벨로우", sets: "50 x 10 · 60 x 8" }
+      ],
+      "화": [
+        { name: "브이바 푸쉬다운", sets: "40 x 12 · 50 x 10" }
+      ],
+      "수": [],
+      "목": [
+        { name: "케이블 사레레", sets: "5 x 15 · 5 x 15" }
+      ],
+      "금": [
+        { name: "인클라인 프레스", sets: "20 x 10 · 24 x 8" }
+      ],
+      "토": [
+        { name: "레그프레스", sets: "140 x 10 · 180 x 8" }
+      ],
+      "일": []
+    };
+
+    function formatDateKey(date) {
+      return date.getFullYear() + "-" + 
+             String(date.getMonth() + 1).padStart(2, "0") + "-" + 
+             String(date.getDate()).padStart(2, "0");
+    }
+
+    function WorkoutAI() {
+      const today = new Date();
+      const todayKey = formatDateKey(today);
+
+      const [page, setPage] = useState("home");
+      const [calendarDate, setCalendarDate] = useState(new Date());
+      const [selectedDay, setSelectedDay] = useState(WEEK_DAYS[(today.getDay() + 6) % 7]);
+      const [question, setQuestion] = useState("");
+      const [answer, setAnswer] = useState("AI 코치 준비 완료");
+
+      const [routineData, setRoutineData] = useState(function() {
+        const saved = localStorage.getItem("routine-data-v1");
+        return saved ? JSON.parse(saved) : DEFAULT_ROUTINE;
+      });
+
+      const [historyData, setHistoryData] = useState(function() {
+        const saved = localStorage.getItem("history-data-v1");
+        return saved ? JSON.parse(saved) : {};
+      });
+
+      const [modalOpen, setModalOpen] = useState(false);
+      const [editingIndex, setEditingIndex] = useState(null);
+      const [exerciseName, setExerciseName] = useState("");
+      const [exerciseSets, setExerciseSets] = useState("");
+
+      useEffect(function() {
+        localStorage.setItem("routine-data-v1", JSON.stringify(routineData));
+      }, [routineData]);
+
+      useEffect(function() {
+        localStorage.setItem("history-data-v1", JSON.stringify(historyData));
+      }, [historyData]);
+
+      const currentRoutine = routineData[selectedDay] || [];
+      const currentHistory = (historyData[todayKey] && historyData[todayKey][selectedDay]) || [];
+
+      const routineWithCompletion = currentRoutine.map(function(exercise, index) {
+        return Object.assign({}, exercise, {
+          completed: (currentHistory[index] && currentHistory[index].completed) || false
+        });
+      });
+
+      const completedCount = routineWithCompletion.filter(function(item) { return item.completed; }).length;
+      const dailyPercent = routineWithCompletion.length === 0 ? 0 : Math.round((completedCount / routineWithCompletion.length) * 100);
+
+      const toggleComplete = function(index) {
+        const dayData = (historyData[todayKey] && historyData[todayKey][selectedDay]) || [];
+        const updated = [].concat(dayData);
+        updated[index] = { completed: !(updated[index] && updated[index].completed) };
+
+        const newDaySection = Object.assign({}, historyData[todayKey] || {}, { [selectedDay]: updated });
+        setHistoryData(Object.assign({}, historyData, { [todayKey]: newDaySection }));
+      };
+
+      const askAI = function() {
+        const text = question.toLowerCase();
+        if (text.includes("식단")) {
+          setAnswer("현재 단백질 비율은 충분하지만 수분과 식이섬유 섭취 보완이 우선입니다.");
+          return;
+        }
+        if (text.includes("어깨") || text.includes("측면")) {
+          setAnswer("측면 삼각근 볼륨 강화 우선순위가 높습니다. 케이블 사레레 빈도를 늘리는 방향을 추천합니다.");
+          return;
+        }
+        if (text.includes("벌크") || text.includes("증량")) {
+          setAnswer("현재는 클린 벌크 방향이 적합합니다. 운동 전후 탄수화물 보완을 추천합니다.");
+          return;
+        }
+        setAnswer("최근 수행률과 루틴 밸런스를 기준으로 회복 상태는 양호합니다.");
+      };
+
+      const currentMonth = calendarDate.getMonth();
+      const currentYear = calendarDate.getFullYear();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const currentMonthLabel = currentYear + "년 " + (currentMonth + 1) + "월";
+
+      const completedDaysCount = useMemo(function() {
+        return Object.keys(historyData).filter(function(dateKey) {
+          const date = new Date(dateKey);
+          if (!(date.getMonth() === currentMonth && date.getFullYear() === currentYear)) return false;
+          const dayData = historyData[dateKey];
+          return Object.values(dayData).some(function(items) {
+            return items.some(function(item) { return item.completed; });
+          });
+        }).length;
+      }, [historyData, currentMonth, currentYear]);
+
+      const monthPercent = Math.round((completedDaysCount / daysInMonth) * 100);
+
+      const openAddModal = function() {
+        setEditingIndex(null); setExerciseName(""); setExerciseSets(""); setModalOpen(true);
+      };
+
+      const openEditModal = function(exercise, index) {
+        setEditingIndex(index); setExerciseName(exercise.name); setExerciseSets(exercise.sets); setModalOpen(true);
+      };
+
+      const saveExercise = function() {
+        if (!exerciseName || !exerciseSets) return;
+        if (editingIndex === null) {
+          const updatedList = [].concat(routineData[selectedDay] || [], [{ name: exerciseName, sets: exerciseSets }]);
+          setRoutineData(Object.assign({}, routineData, { [selectedDay]: updatedList }));
+        } else {
+          const updatedList = (routineData[selectedDay] || []).map(function(item, idx) {
+            return idx === editingIndex ? { name: exerciseName, sets: exerciseSets } : item;
+          });
+          setRoutineData(Object.assign({}, routineData, { [selectedDay]: updatedList }));
+        }
+        setModalOpen(false);
+      };
+
+      const deleteExercise = function(index) {
+        const updatedList = (routineData[selectedDay] || []).filter(function(_, idx) { return idx !== index; });
+        setRoutineData(Object.assign({}, routineData, { [selectedDay]: updatedList }));
+      };
+
+      return e('div', { className: 'min-h-screen pb-40' },
+        e('div', { className: 'max-w-md mx-auto p-5 space-y-5' },
+          e('div', null,
+            e('h1', { className: 'text-3xl font-black text-[#b83048]' }, 'Workout AI'),
+            e('p', { className: 'text-sm text-gray-500 mt-1' }, '루틴 · 캘린더 · AI 분석')
+          ),
+
+          page === "home" && e('div', { className: 'space-y-5' },
+            e('div', { className: 'grid grid-cols-7 gap-2' },
+              WEEK_DAYS.map(function(day) {
+                return e('button', {
+                  key: day,
+                  onClick: function() { setSelectedDay(day); },
+                  className: 'h-12 rounded-2xl border text-sm font-black ' + (selectedDay === day ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-white text-[#b83048] border-[#e7c2ca]')
+                }, day);
+              })
+            ),
+            e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5' },
+              e('div', { className: 'flex items-center justify-between mb-5' },
+                e('div', null,
+                  e('h2', { className: 'text-2xl font-black' }, selectedDay + '요일 루틴'),
+                  e('p', { className: 'text-sm text-gray-500 mt-1' }, '일일 완료율 ' + dailyPercent + '%')
+                ),
+                e('div', { className: 'text-[#b83048] text-xl font-black' }, completedCount + '/' + routineWithCompletion.length)
+              ),
+              routineWithCompletion.length === 0 && e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-6 text-center text-sm text-gray-500 font-semibold' }, '휴식일'),
+              e('div', { className: 'space-y-3' },
+                routineWithCompletion.map(function(exercise, index) {
+                  return e('div', {
+                    key: index,
+                    /* 완료 여부에 따라 배경 이펙트만 토글 (글씨 왜곡이나 흐려짐 없음) */
+                    className: 'rounded-3xl border p-4 transition-colors duration-200 ' + (exercise.completed ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200')
+                  },
+                    e('div', { className: 'flex items-start justify-between' },
+                      e('div', null,
+                        e('h3', { className: 'font-black text-sm text-gray-900' }, exercise.name),
+                        e('p', { className: 'text-xs text-gray-500 mt-2' }, exercise.sets)
+                      ),
+                      e('button', {
+                        onClick: function() { toggleComplete(index); },
+                        className: 'w-7 h-7 rounded-full flex items-center justify-center text-sm font-black transition-colors ' + (exercise.completed ? 'bg-green-600 text-white' : 'border-2 border-dotted border-[#b83048] text-transparent')
+                      }, '✔')
+                    )
+                  );
+                })
+              )
+            )
+          ),
+
+          page === "calendar" && e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5' },
+            e('div', { className: 'flex items-center justify-between mb-5' },
+              e('button', { onClick: function() { setCalendarDate(new Date(currentYear, currentMonth - 1, 1)); }, className: 'w-10 h-10 rounded-2xl border bg-white' }, '←'),
+              e('div', { className: 'text-center' },
+                e('h2', { className: 'text-2xl font-black' }, currentMonthLabel),
+                e('p', { className: 'text-sm text-[#b83048]' + ' font-bold' }, '월간 수행률 ' + monthPercent + '%')
+              ),
+              e('button', { onClick: function() { setCalendarDate(new Date(currentYear, currentMonth + 1, 1)); }, className: 'w-10 h-10 rounded-2xl border bg-white' }, '→')
+            ),
+            e('div', { className: 'grid grid-cols-7 gap-2' },
+              Array.from({ length: daysInMonth }).map(function(_, index) {
+                const dayNumber = index + 1;
+                const dateKey = currentYear + "-" + String(currentMonth + 1).padStart(2, "0") + "-" + String(dayNumber).padStart(2, "0");
+                const dayCompleted = historyData[dateKey];
+                const completed = !!dayCompleted && Object.values(dayCompleted).some(function(items) {
+                  return items.some(function(item) { return item.completed; });
+                });
+                const isToday = today.getDate() === dayNumber && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+
+                return e('div', {
+                  key: index,
+                  className: 'aspect-square rounded-2xl border flex items-center justify-center text-sm font-bold relative ' + 
+                             (completed ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-[#f8f8f8] border-gray-200 text-gray-500') + 
+                             (isToday ? ' ring-4 ring-[#b83048]/30' : '')
+                }, dayNumber, isToday && e('div', { className: 'absolute top-1 right-1 w-2 h-2 rounded-full bg-white' }));
+              })
+            )
+          ),
+
+          page === "analysis" && e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5 space-y-4' },
+            e('h2', { className: 'text-2xl font-black' }, 'AI 코치'),
+            e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-5 min-h-[140px] text-sm leading-7 whitespace-pre-line' }, answer),
+            e('textarea', {
+              value: question,
+              onChange: function(e) { setQuestion(e.target.value); },
+              placeholder: '운동 · 식단 · 벌크 · 감량 질문',
+              className: 'w-full min-h-[120px] rounded-3xl border border-gray-200 p-4 outline-none resize-none'
+            }),
+            e('button', { onClick: askAI, className: 'w-full h-14 rounded-3xl bg-[#b83048] text-white font-black' }, 'AI 분석 요청')
+          ),
+
+          page === "settings" && e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5 space-y-4' },
+            e('div', { className: 'flex items-center justify-between' },
+              e('h2', { className: 'text-2xl font-black' }, '루틴 설정'),
+              e('button', { onClick: openAddModal, className: 'px-4 h-11 rounded-2xl bg-[#b83048] text-white text-sm font-black' }, '추가')
+            ),
+            e('div', { className: 'grid grid-cols-7 gap-2' },
+              WEEK_DAYS.map(function(day) {
+                return e('button', {
+                  key: day,
+                  onClick: function() { setSelectedDay(day); },
+                  className: 'h-11 rounded-2xl border text-xs font-black ' + (selectedDay === day ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-white text-[#b83048] border-[#e7c2ca]')
+                }, day);
+              })
+            ),
+            e('div', { className: 'space-y-3' },
+              currentRoutine.map(function(exercise, index) {
+                return e('div', { key: index, className: 'rounded-3xl bg-[#f8f8f8] border border-gray-200 p-4 flex items-center justify-between' },
+                  e('div', null,
+                    e('p', { className: 'font-black text-sm' }, exercise.name),
+                    e('p', { className: 'text-xs text-gray-500 mt-1' }, exercise.sets)
+                  ),
+                  e('div', { className: 'flex gap-2' },
+                    e('button', { onClick: function() { openEditModal(exercise, index); }, className: 'px-3 h-10 rounded-2xl bg-blue-500 text-white text-xs font-black' }, '수정'),
+                    e('button', { onClick: function() { deleteExercise(index); }, className: 'px-3 h-10 rounded-2xl bg-red-500 text-white text-xs font-black' }, '삭제')
+                  )
+                );
+              })
+            )
+          )
+        ),
+
+        e('div', { className: 'fixed bottom-0 left-0 right-0 bg-white/95 border-t border-gray-200 pt-3 pb-8 px-4' },
+          e('div', { className: 'max-w-md mx-auto grid grid-cols-4 gap-3' },
+            [
+              ["home", "홈"],
+              ["calendar", "캘린더"],
+              ["analysis", "분석"],
+              ["settings", "설정"]
+            ].map(function([key, label]) {
+              return e('button', {
+                key: key,
+                onClick: function() { setPage(key); },
+                className: 'h-16 rounded-3xl border text-sm font-black ' + (page === key ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-white text-[#b83048] border-[#e7c2ca]')
+              }, label);
+            })
+          )
+        ),
+
+        modalOpen && e('div', { className: 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-5' },
+          e('div', { className: 'bg-white rounded-[32px] w-full max-w-sm p-5 space-y-4' },
+            e('h2', { className: 'text-2xl font-black' }, '운동 설정'),
+            e('input', { value: exerciseName, onChange: function(e) { setExerciseName(e.target.value); }, placeholder: '운동 이름', className: 'w-full h-14 rounded-2xl border border-gray-200 px-4 outline-none' }),
+            e('input', { value: exerciseSets, onChange: function(e) { setExerciseSets(e.target.value); }, placeholder: '세트 및 횟수', className: 'w-full h-14 rounded-2xl border border-gray-200 px-4 outline-none' }),
+            e('button', { onClick: saveExercise, className: 'w-full h-14 rounded-2xl bg-[#b83048] text-white font-black' }, '저장')
+          )
+        )
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(e(WorkoutAI));
+  </script>
+</body>
+</html>
