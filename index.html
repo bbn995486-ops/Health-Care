@@ -16,7 +16,6 @@
 
   <link rel="shortcut icon" href="icon.png" type="image/png">
   <script>
-    // [PWA 캐시 방지] 배포 시마다 이전 버전의 캐시를 확실하게 날려 흰 화면을 예방합니다.
     const manifest = {
       "short_name": "Workout AI",
       "name": "Workout AI",
@@ -46,6 +45,13 @@
       -webkit-user-select: text;
       user-select: text;
     }
+    /* 드래그 중인 아이템 스타일 */
+    .dragging {
+      opacity: 0.5;
+      transform: scale(0.98);
+      border-style: dashed !important;
+      border-color: #b83048 !important;
+    }
   </style>
 </head>
 <body class="bg-[#f3f4f6] text-[#111827]">
@@ -53,12 +59,11 @@
   <div id="root"></div>
 
   <script>
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
     const e = React.createElement;
 
     const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
-    // 🌟 이미지에 적힌 운동 이름, 무게, 횟수를 완벽하게 기입한 실제 루틴 데이터
     const DEFAULT_ROUTINE = {
       "월": [
         { name: "랫풀다운", sets: "40 x 10 · 50 x 10 · 60 x 10" },
@@ -79,7 +84,7 @@
         { name: "[전완] 리스트 컬 UP", sets: "5 x 10 · 5 x 10" },
         { name: "[전완] 리스트 컬 DOWN", sets: "5 x 10 · 5 x 10" }
       ],
-      "수": [], // 휴식
+      "수": [],
       "목": [
         { name: "케이블 사이드 레터럴 레이즈", sets: "5 x 12 · 5 x 10 · 5 x 10 · 5 x 10 · 5 x 10" },
         { name: "머신 숄더 프레스", sets: "30 x 10 · 40 x 10 · 50 x 8" },
@@ -99,7 +104,7 @@
         { name: "원 레그 익스텐션", sets: "20 x 10 · 20 x 8" },
         { name: "레그컬", sets: "40 x 12 · 50 x 10 · 60 x 10" }
       ],
-      "일": [] // 휴식
+      "일": []
     };
 
     function formatDateKey(date) {
@@ -116,12 +121,14 @@
       const [calendarDate, setCalendarDate] = useState(new Date());
       const [selectedDay, setSelectedDay] = useState(WEEK_DAYS[(today.getDay() + 6) % 7]);
 
-      // 🌟 버전체크 자동화 고도화 (새 배포 시 강제 새로고침 유도)
+      // 드래그 앤 드롭 인덱스 상태관리
+      const [draggedIndex, setDraggedIndex] = useState(null);
+      const touchStartY = useRef(0);
+
       useEffect(function() {
-        const currentVersion = "v2026.06.15_v2"; 
+        const currentVersion = "v2026.06.15_drag_v1"; 
         const savedVersion = localStorage.getItem("app-version");
         if (savedVersion !== currentVersion) {
-          localStorage.removeItem("routine-data-v1"); // 옛날 강제 캐시 삭제하여 신규 이미지 루틴 강제 주입
           localStorage.setItem("app-version", currentVersion);
           window.location.reload(true);
         }
@@ -169,6 +176,61 @@
 
         const newDaySection = Object.assign({}, historyData[todayKey] || {}, { [selectedDay]: updated });
         setHistoryData(Object.assign({}, historyData, { [todayKey]: newDaySection }));
+      };
+
+      // ───────────────────────────────────────────
+      // 🎛️ 드래그 앤 드롭 핵심 핸들러 (PC & Mobile 대응)
+      // ───────────────────────────────────────────
+      const handleDragStart = function(index) {
+        setDraggedIndex(index);
+      };
+
+      const handleDragOver = function(e, index) {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === index) return;
+
+        const list = [].concat(routineData[selectedDay]);
+        const draggedItem = list[draggedIndex];
+        
+        list.splice(draggedIndex, 1);
+        list.splice(index, 0, draggedItem);
+        
+        setDraggedIndex(index);
+        setRoutineData(Object.assign({}, routineData, { [selectedDay]: list }));
+      };
+
+      const handleDragEnd = function() {
+        setDraggedIndex(null);
+        // 드래그 완료 후 당일 수행 내역(historyData)의 매칭 인덱스가 꼬이지 않도록 초기화하거나 연동하는 구조 필요 시 대응 가능합니다.
+      };
+
+      // 모바일 전용 터치 이동 이벤트 핸들러
+      const handleTouchStart = function(e, index) {
+        setDraggedIndex(index);
+        touchStartY.current = e.touches[0].clientY;
+      };
+
+      const handleTouchMove = function(e, index) {
+        if (draggedIndex === null) return;
+        
+        const touchY = e.touches[0].clientY;
+        const targetElement = document.elementFromPoint(e.touches[0].clientX, touchY);
+        if (!targetElement) return;
+
+        const itemElement = targetElement.closest('[data-drag-index]');
+        if (!itemElement) return;
+
+        const targetIndex = parseInt(itemElement.getAttribute('data-drag-index'), 10);
+        if (isNaN(targetIndex) || targetIndex === draggedIndex) return;
+
+        const list = [].concat(routineData[selectedDay]);
+        const draggedItem = list[draggedIndex];
+        
+        list.splice(draggedIndex, 1);
+        list.splice(targetIndex, 0, draggedItem);
+        
+        setDraggedIndex(targetIndex);
+        setRoutineData(Object.assign({}, routineData, { [selectedDay]: list }));
       };
 
       const currentMonth = calendarDate.getMonth();
@@ -237,25 +299,43 @@
               e('div', { className: 'flex items-center justify-between mb-5' },
                 e('div', null,
                   e('h2', { className: 'text-2xl font-black' }, selectedDay + '요일 루틴'),
-                  e('p', { className: 'text-sm text-gray-500 mt-1' }, '일일 완료율 ' + dailyPercent + '%')
+                  e('p', { className: 'text-xs text-gray-400 mt-1' }, '💡 목록을 길게 누르거나 드래그하여 순서를 바꿀 수 있습니다.')
                 ),
-                e('div', { className: 'text-[#b83048] text-xl font-black' }, completedCount + '/' + routineWithCompletion.length)
+                e('div', { className: 'text-[#b83048] text-xl font-black ml-2 shrink-0' }, completedCount + '/' + routineWithCompletion.length)
               ),
               routineWithCompletion.length === 0 && e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-6 text-center text-sm text-gray-500 font-semibold' }, '휴식일 (스트레칭 및 리커버리)'),
+              
+              // 🔄 드래그 앤 드롭 정렬이 가능한 리스트 영역
               e('div', { className: 'space-y-3' },
                 routineWithCompletion.map(function(exercise, index) {
                   return e('div', {
                     key: index,
-                    className: 'rounded-3xl border p-4 transition-colors duration-200 ' + (exercise.completed ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200')
+                    'data-drag-index': index,
+                    draggable: true,
+                    onDragStart: function() { handleDragStart(index); },
+                    onDragOver: function(e) { handleDragOver(e, index); },
+                    onDragEnd: handleDragEnd,
+                    onTouchStart: function(e) { handleTouchStart(e, index); },
+                    onTouchMove: function(e) { handleTouchMove(e, index); },
+                    onTouchEnd: handleDragEnd,
+                    className: 'rounded-3xl border p-4 transition-all duration-150 cursor-grab active:cursor-grabbing select-none ' + 
+                               (exercise.completed ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200 ') +
+                               (draggedIndex === index ? ' dragging' : '')
                   },
-                    e('div', { className: 'flex items-start justify-between' },
+                    e('div', { className: 'flex items-start justify-between pointer-events-none' },
                       e('div', null,
-                        e('h3', { className: 'font-black text-sm text-gray-900' }, exercise.name),
-                        e('p', { className: 'text-xs text-gray-500 mt-2' }, exercise.sets)
+                        e('div', { className: 'flex items-center gap-2' },
+                          e('span', { className: 'text-xs bg-gray-100 text-gray-400 font-bold px-1.5 py-0.5 rounded-md' }, index + 1),
+                          e('h3', { className: 'font-black text-sm text-gray-900' }, exercise.name)
+                        ),
+                        e('p', { className: 'text-xs text-gray-500 mt-2 pl-6' }, exercise.sets)
                       ),
                       e('button', {
-                        onClick: function() { toggleComplete(index); },
-                        className: 'w-7 h-7 rounded-full flex items-center justify-center text-sm font-black transition-colors ' + (exercise.completed ? 'bg-green-600 text-white' : 'border-2 border-dotted border-[#b83048] text-transparent')
+                        onClick: function(e) { 
+                          e.stopPropagation(); // 드래그 이벤트 전파 차단
+                          toggleComplete(index); 
+                        },
+                        className: 'w-7 h-7 rounded-full flex items-center justify-center text-sm font-black transition-colors pointer-events-auto ' + (exercise.completed ? 'bg-green-600 text-white' : 'border-2 border-dotted border-[#b83048] text-transparent')
                       }, '✔')
                     )
                   );
@@ -324,8 +404,7 @@
           )
         ),
 
-        // 하단 탭 메뉴 바 (AI 분석 파트를 제외하고 깔끔하게 3단 구성으로 압축)
-        e('div', { className: 'fixed bottom-0 left-0 right-0 bg-white/95 border-t border-gray-200 pt-3 pb-8 px-4' },
+        e('div', { className: 'fixed bottom-0 left-0 right-0 bg-white/95 border-t border-gray-200 pt-3 pb-8 px-4 z-40' },
           e('div', { className: 'max-w-md mx-auto grid grid-cols-3 gap-3' },
             [
               ["home", "홈"],
