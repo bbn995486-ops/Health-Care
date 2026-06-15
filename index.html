@@ -16,11 +16,12 @@
 
   <link rel="shortcut icon" href="icon.png" type="image/png">
   <script>
+    // [PWA 캐시 방지] 배포 시마다 이전 버전의 캐시를 확실하게 날려 흰 화면을 예방합니다.
     const manifest = {
       "short_name": "Workout AI",
       "name": "Workout AI",
       "icons": [{"src": "icon.png", "type": "image/png", "sizes": "512x512"}],
-      "start_url": ".",
+      "start_url": ".?v=" + Date.now(),
       "background_color": "#f3f4f6",
       "theme_color": "#b83048",
       "display": "standalone",
@@ -57,25 +58,48 @@
 
     const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
+    // 🌟 이미지에 적힌 운동 이름, 무게, 횟수를 완벽하게 기입한 실제 루틴 데이터
     const DEFAULT_ROUTINE = {
       "월": [
-        { name: "랫풀다운", sets: "50 x 10 · 60 x 8" },
-        { name: "바벨로우", sets: "50 x 10 · 60 x 8" }
+        { name: "랫풀다운", sets: "40 x 10 · 50 x 10 · 60 x 10" },
+        { name: "바벨 로우", sets: "40 x 14 · 60 x 10 · 60 x 10 · 40 x 10" },
+        { name: "원암 덤벨 로우", sets: "20 x 14 · 24 x 8 · 20 x 12" },
+        { name: "스트레이트 암 풀다운", sets: "3세트 x 12~15회" },
+        { name: "시티드 로우", sets: "40 x 10 · 50 x 10 · 60 x 10 · 70 x 3" },
+        { name: "원암 시티드 로우", sets: "40 x 10 · 60 x 10 · 40 x 10" }
       ],
       "화": [
-        { name: "브이바 푸쉬다운", sets: "40 x 12 · 50 x 10" }
+        { name: "[삼두] 사이드 케이블 킥백", sets: "10 x 10 · 15 x 10 · 15 x 10 · 10 x 10" },
+        { name: "[삼두] 브이바 케이블 푸쉬다운", sets: "40 x 12 · 50 x 10 · 60 x 8 · 50 x 10" },
+        { name: "[삼두] 케이블 킥백", sets: "10 x 10 · 5 x 12" },
+        { name: "[이두] 프리처 컬 머신", sets: "50 x 10 · 60 x 10 · 70 x 5" },
+        { name: "[이두] 원암 프리처 컬 머신", sets: "25 x 10 · 20 x 10 · 20 x 10" },
+        { name: "[이두] 해머 컬", sets: "14 x 10 · 12 x 10 · 12 x 10 · 12 x 10 · 10 x 10" },
+        { name: "[이두] 덤벨 컬", sets: "12 x 10 · 12 x 10" },
+        { name: "[전완] 리스트 컬 UP", sets: "5 x 10 · 5 x 10" },
+        { name: "[전완] 리스트 컬 DOWN", sets: "5 x 10 · 5 x 10" }
       ],
-      "수": [],
+      "수": [], // 휴식
       "목": [
-        { name: "케이블 사레레", sets: "5 x 15 · 5 x 15" }
+        { name: "케이블 사이드 레터럴 레이즈", sets: "5 x 12 · 5 x 10 · 5 x 10 · 5 x 10 · 5 x 10" },
+        { name: "머신 숄더 프레스", sets: "30 x 10 · 40 x 10 · 50 x 8" },
+        { name: "덤벨 숄더 프레스", sets: "8 x 10 · 16 x 10 · 20 x 8" },
+        { name: "덤벨 후면 레이즈", sets: "14 x 12 · 14 x 12" }
       ],
       "금": [
-        { name: "인클라인 프레스", sets: "20 x 10 · 24 x 8" }
+        { name: "인클라인 덤벨 프레스", sets: "10 x 10 · 16 x 10 · 20 x 10" },
+        { name: "체스트 프레스", sets: "40 x 10 · 40 x 10" },
+        { name: "머신 체스트 플라이", sets: "30 x 10 · 40 x 10" }
       ],
       "토": [
-        { name: "레그프레스", sets: "140 x 10 · 180 x 8" }
+        { name: "아웃타이", sets: "40 x 10 · 50 x 10" },
+        { name: "이너타이", sets: "40 x 12 · 50 x 10" },
+        { name: "레그프레스", sets: "40 x 10 · 120 x 10 · 160 x 10 · 200 x 10 · 120 x 10" },
+        { name: "레그 익스텐션", sets: "40 x 12 · 50 x 10 · 60 x 10" },
+        { name: "원 레그 익스텐션", sets: "20 x 10 · 20 x 8" },
+        { name: "레그컬", sets: "40 x 12 · 50 x 10 · 60 x 10" }
       ],
-      "일": []
+      "일": [] // 휴식
     };
 
     function formatDateKey(date) {
@@ -91,8 +115,17 @@
       const [page, setPage] = useState("home");
       const [calendarDate, setCalendarDate] = useState(new Date());
       const [selectedDay, setSelectedDay] = useState(WEEK_DAYS[(today.getDay() + 6) % 7]);
-      const [question, setQuestion] = useState("");
-      const [answer, setAnswer] = useState("AI 코치 준비 완료");
+
+      // 🌟 버전체크 자동화 고도화 (새 배포 시 강제 새로고침 유도)
+      useEffect(function() {
+        const currentVersion = "v2026.06.15_v2"; 
+        const savedVersion = localStorage.getItem("app-version");
+        if (savedVersion !== currentVersion) {
+          localStorage.removeItem("routine-data-v1"); // 옛날 강제 캐시 삭제하여 신규 이미지 루틴 강제 주입
+          localStorage.setItem("app-version", currentVersion);
+          window.location.reload(true);
+        }
+      }, []);
 
       const [routineData, setRoutineData] = useState(function() {
         const saved = localStorage.getItem("routine-data-v1");
@@ -136,23 +169,6 @@
 
         const newDaySection = Object.assign({}, historyData[todayKey] || {}, { [selectedDay]: updated });
         setHistoryData(Object.assign({}, historyData, { [todayKey]: newDaySection }));
-      };
-
-      const askAI = function() {
-        const text = question.toLowerCase();
-        if (text.includes("식단")) {
-          setAnswer("현재 단백질 비율은 충분하지만 수분과 식이섬유 섭취 보완이 우선입니다.");
-          return;
-        }
-        if (text.includes("어깨") || text.includes("측면")) {
-          setAnswer("측면 삼각근 볼륨 강화 우선순위가 높습니다. 케이블 사레레 빈도를 늘리는 방향을 추천합니다.");
-          return;
-        }
-        if (text.includes("벌크") || text.includes("증량")) {
-          setAnswer("현재는 클린 벌크 방향이 적합합니다. 운동 전후 탄수화물 보완을 추천합니다.");
-          return;
-        }
-        setAnswer("최근 수행률과 루틴 밸런스를 기준으로 회복 상태는 양호합니다.");
       };
 
       const currentMonth = calendarDate.getMonth();
@@ -204,7 +220,7 @@
         e('div', { className: 'max-w-md mx-auto p-5 space-y-5' },
           e('div', null,
             e('h1', { className: 'text-3xl font-black text-[#b83048]' }, 'Workout AI'),
-            e('p', { className: 'text-sm text-gray-500 mt-1' }, '루틴 · 캘린더 · AI 분석')
+            e('p', { className: 'text-sm text-gray-500 mt-1' }, '주간 고볼륨 웨이트 트레이닝 루틴 리포트')
           ),
 
           page === "home" && e('div', { className: 'space-y-5' },
@@ -225,12 +241,11 @@
                 ),
                 e('div', { className: 'text-[#b83048] text-xl font-black' }, completedCount + '/' + routineWithCompletion.length)
               ),
-              routineWithCompletion.length === 0 && e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-6 text-center text-sm text-gray-500 font-semibold' }, '휴식일'),
+              routineWithCompletion.length === 0 && e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-6 text-center text-sm text-gray-500 font-semibold' }, '휴식일 (스트레칭 및 리커버리)'),
               e('div', { className: 'space-y-3' },
                 routineWithCompletion.map(function(exercise, index) {
                   return e('div', {
                     key: index,
-                    /* 완료 여부에 따라 배경 이펙트만 토글 (글씨 왜곡이나 흐려짐 없음) */
                     className: 'rounded-3xl border p-4 transition-colors duration-200 ' + (exercise.completed ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200')
                   },
                     e('div', { className: 'flex items-start justify-between' },
@@ -271,23 +286,11 @@
                 return e('div', {
                   key: index,
                   className: 'aspect-square rounded-2xl border flex items-center justify-center text-sm font-bold relative ' + 
-                             (completed ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-[#f8f8f8] border-gray-200 text-gray-500') + 
-                             (isToday ? ' ring-4 ring-[#b83048]/30' : '')
+                               (completed ? 'bg-[#b83048] text-white border-[#b83048]' : 'bg-[#f8f8f8] border-gray-200 text-gray-500') + 
+                               (isToday ? ' ring-4 ring-[#b83048]/30' : '')
                 }, dayNumber, isToday && e('div', { className: 'absolute top-1 right-1 w-2 h-2 rounded-full bg-white' }));
               })
             )
-          ),
-
-          page === "analysis" && e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5 space-y-4' },
-            e('h2', { className: 'text-2xl font-black' }, 'AI 코치'),
-            e('div', { className: 'rounded-3xl bg-[#f8f8f8] p-5 min-h-[140px] text-sm leading-7 whitespace-pre-line' }, answer),
-            e('textarea', {
-              value: question,
-              onChange: function(e) { setQuestion(e.target.value); },
-              placeholder: '운동 · 식단 · 벌크 · 감량 질문',
-              className: 'w-full min-h-[120px] rounded-3xl border border-gray-200 p-4 outline-none resize-none'
-            }),
-            e('button', { onClick: askAI, className: 'w-full h-14 rounded-3xl bg-[#b83048] text-white font-black' }, 'AI 분석 요청')
           ),
 
           page === "settings" && e('div', { className: 'bg-white rounded-[28px] border border-gray-200 p-5 space-y-4' },
@@ -321,12 +324,12 @@
           )
         ),
 
+        // 하단 탭 메뉴 바 (AI 분석 파트를 제외하고 깔끔하게 3단 구성으로 압축)
         e('div', { className: 'fixed bottom-0 left-0 right-0 bg-white/95 border-t border-gray-200 pt-3 pb-8 px-4' },
-          e('div', { className: 'max-w-md mx-auto grid grid-cols-4 gap-3' },
+          e('div', { className: 'max-w-md mx-auto grid grid-cols-3 gap-3' },
             [
               ["home", "홈"],
               ["calendar", "캘린더"],
-              ["analysis", "분석"],
               ["settings", "설정"]
             ].map(function([key, label]) {
               return e('button', {
